@@ -1,7 +1,6 @@
 # fhir-editors
 
-Browser-based editors for FHIR resources. The same code runs in an Electron app
-(such as the IG Publisher Manager) and in a web page served by FHIRsmith.
+Browser-based editors for FHIR resources. The same code runs in an Electron app and in a web page served by FHIRsmith.
 
 For now there is one editor, `<cs-editor>`, for CodeSystem.
 
@@ -27,7 +26,7 @@ Three hosts are provided:
 
 | Host | For |
 |---|---|
-| `createFetchHost({ loadUrl, saveUrl, terminologyServer })` | Web pages, including FHIRsmith. GET to load, PUT to save. |
+| `createFetchHost({ loadUrl, saveUrl, terminologyServer })` | Web pages, for a web application. GET to load, PUT to save. |
 | `createElectronHost({ file, ipc?, terminologyServer })` | Electron renderers. Reads and writes the file through the main process. |
 | `createFileHandleHost(handle)` | A local file in a browser with the File System Access API (Chromium, Electron). Saves write the file itself. |
 | `createDownloadHost(file)` | A local file in other browsers. Saves download a copy. |
@@ -130,7 +129,7 @@ createElectronHost({ file, ipc: require('electron').ipcRenderer });
 Warn about unsaved changes with `editor.hasChanges` (the example does this
 with `beforeunload` and `will-prevent-unload`).
 
-## Using it in FHIRsmith
+## Using it in a Web Application
 
 Serve the bundles:
 

@@ -1,7 +1,7 @@
 {
   "name": "fhir-editors",
   "version": "0.1.0",
-  "description": "Browser-based editors for FHIR resources, for use in Electron applications (IG Publisher Manager) and in FHIRsmith",
+  "description": "Browser-based editors for FHIR resources, for use in Electron applications and in web applications",
   "type": "module",
   "license": "BSD-3-Clause",
   "author": {
