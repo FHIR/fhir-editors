@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FHIR Editors - demo</title>
+  <style>
+    body { margin: 0; font: 14px system-ui, sans-serif; display: flex; flex-direction: column; height: 100vh; }
+    .demo-bar { display: flex; gap: 12px; align-items: center; padding: 6px 12px; background: #333; color: #eee; flex-wrap: wrap; }
+    .demo-bar label { display: inline-flex; gap: 4px; align-items: center; }
+    .demo-bar .group { display: inline-flex; gap: 4px; align-items: center; padding-right: 12px; border-right: 1px solid #666; }
+    .demo-bar button, .demo-bar select { font: inherit; }
+    #current { color: #bbb; max-width: 30em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    cs-editor { flex: 1; min-height: 0; margin: 8px; }
+    @media (prefers-color-scheme: dark) { body { background: #111; } }
+    #saved { max-height: 30vh; overflow: auto; margin: 0 8px 8px; font-size: 12px; background: #f4f4f4; padding: 6px; display: none; }
+    body.dragging::after {
+      content: 'Drop a CodeSystem JSON file to open it'; position: fixed; inset: 0; display: flex;
+      align-items: center; justify-content: center; font-size: 20px; color: #fff; background: rgba(37, 99, 201, 0.55);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-bar">
+    <strong>fhir-editors demo</strong>
+    <span class="group">
+      <button id="open" title="Open a CodeSystem JSON file (or drop one on the page)">Open file…</button>
+      <select id="recent" title="Recently opened files" hidden><option value="">Recent…</option></select>
+      <button id="close" disabled>Close</button>
+      <span id="current"></span>
+    </span>
+    <label>Sample <select id="which">
+      <option value="" hidden>-</option>
+      <option value="sample">sample</option>
+      <option value="big">generated, 5000 concepts</option>
+      <option value="new">new, empty</option>
+    </select></label>
+    <label><input type="checkbox" id="ro"> read only</label>
+    <label>FHIR <select id="ver"><option>4.0.1</option><option>5.0.0</option></select></label>
+    <label>Theme <select id="theme"><option value="">auto</option><option>light</option><option>dark</option></select></label>
+    <label><input type="checkbox" id="tx"> check codings against tx.fhir.org</label>
+    <label><input type="checkbox" id="showSaved"> show saved JSON</label>
+  </div>
+  <cs-editor id="ed"></cs-editor>
+  <pre id="saved"></pre>
+
+  <script type="module">
+    import {
+      MemoryHost, createTerminologyLookup, codeSystemModel, openLocalFile, hostFromDrop,
+      createFileHandleHost, canWriteFiles
+    } from '../dist/codesystem.js';
+
+    const ed = document.getElementById('ed');
+    const $ = id => document.getElementById(id);
+    const sample = await (await fetch('./sample-codesystem.json')).json();
+
+    function bigCodeSystem(n) {
+      const cs = { ...codeSystemModel.newCodeSystem(), url: 'http://example.org/fhir/CodeSystem/big', name: 'Big', title: 'Generated', hierarchyMeaning: 'is-a' };
+      let made = 0;
+      for (let a = 0; made < n; a++) {
+        const top = { code: `A${a}`, display: `Group ${a}`, concept: [] };
+        cs.concept.push(top); made++;
+        for (let b = 0; b < 20 && made < n; b++) {
+          const mid = { code: `A${a}.${b}`, display: `Item ${a}.${b}`, concept: [] };
+          top.concept.push(mid); made++;
+          for (let c = 0; c < 10 && made < n; c++, made++) mid.concept.push({ code: `A${a}.${b}.${c}`, display: `Leaf ${a}.${b}.${c}` });
+          if (!mid.concept.length) delete mid.concept;
+        }
+      }
+      return cs;
+    }
+
+    const lookup = () => ($('tx').checked ? createTerminologyLookup('https://tx.fhir.org/r4') : undefined);
+    const showSaved = r => { $('saved').textContent = JSON.stringify(r, null, 2); };
+
+    // --- opening and closing -------------------------------------------------------
+
+    function okToDiscard() {
+      return !ed.hasChanges || confirm(`Discard the unsaved changes to ${ed.host?.label || 'this resource'}?`);
+    }
+
+    function setHost(host, { isFile = false } = {}) {
+      ed.setAttribute('fhir-version', $('ver').value);
+      ed.readonly = $('ro').checked;
+      ed.host = host;
+      $('close').disabled = !host;
+      $('current').textContent = isFile ? host.label : '';
+      if (isFile || !host) $('which').value = '';
+      updateTitle();
+    }
+
+    function openSample() {
+      if (!okToDiscard()) { $('which').value = ''; return; }
+      const which = $('which').value;
+      const resource = which === 'big' ? bigCodeSystem(5000) : which === 'new' ? codeSystemModel.newCodeSystem() : sample;
+      setHost(new MemoryHost(resource, { label: `demo: ${which}`, lookup: lookup(), onSave: showSaved }));
+    }
+
+    async function openFile(getHost) {
+      if (!okToDiscard()) return;
+      let host;
+      try {
+        host = await getHost();
+      } catch (e) {
+        alert(`Unable to open the file: ${e.message}`);
+        return;
+      }
+      if (!host) return; // cancelled
+      wrapSave(host);
+      setHost(host, { isFile: true });
+      if (host.handle) await remember(host.handle);
+    }
+
+    function wrapSave(host) {
+      const save = host.save.bind(host);
+      host.save = async r => { await save(r); showSaved(r); };
+    }
+
+    function close() {
+      if (!okToDiscard()) return;
+      setHost(null);
+    }
+
+    function updateTitle() {
+      const name = ed.host?.label || 'FHIR Editors - demo';
+      document.title = (ed.hasChanges ? '• ' : '') + name;
+    }
+
+    $('open').onclick = () => openFile(() => openLocalFile({ lookup: lookup() }));
+    $('close').onclick = close;
+    $('which').onchange = openSample;
+    ed.addEventListener('fe-change', updateTitle);
+    ed.addEventListener('fe-saved', updateTitle);
+
+    // --- drag a file onto the page -----------------------------------------------------
+
+    const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+    let dragDepth = 0;
+    document.addEventListener('dragenter', e => { if (hasFiles(e)) { dragDepth++; document.body.classList.add('dragging'); } });
+    document.addEventListener('dragleave', e => { if (hasFiles(e) && --dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
+    document.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+    document.addEventListener('drop', e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth = 0;
+      document.body.classList.remove('dragging');
+      const item = [...e.dataTransfer.items].find(i => i.kind === 'file');
+      // the item must be read synchronously, inside the event
+      const pending = item ? hostFromDrop(item, { lookup: lookup() }) : null;
+      if (pending) openFile(() => pending);
+    });
+
+    // --- recently opened files (file handles kept in IndexedDB) ------------------------
+
+    const DB = 'fhir-editors-demo';
+    function db() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB, 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('recent', { keyPath: 'id', autoIncrement: true });
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    async function store(mode, fn) {
+      const d = await db();
+      return new Promise((resolve, reject) => {
+        const tx = d.transaction('recent', mode);
+        const result = fn(tx.objectStore('recent'));
+        tx.oncomplete = () => resolve(result?.result ?? result);
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+    async function recentList() {
+      try {
+        const all = await store('readonly', s => s.getAll());
+        return all.sort((a, b) => b.when - a.when);
+      } catch {
+        return [];
+      }
+    }
+    async function remember(handle) {
+      try {
+        const list = await recentList();
+        for (const r of list) {
+          if (r.name === handle.name && await r.handle.isSameEntry(handle)) await store('readwrite', s => s.delete(r.id));
+        }
+        await store('readwrite', s => s.add({ name: handle.name, handle, when: Date.now() }));
+        const again = await recentList();
+        for (const r of again.slice(8)) await store('readwrite', s => s.delete(r.id));
+      } catch (e) {
+        console.warn('Unable to remember recent file', e);
+      }
+      await showRecent();
+    }
+    async function showRecent() {
+      const list = canWriteFiles ? await recentList() : [];
+      const sel = $('recent');
+      sel.hidden = list.length === 0;
+      sel.replaceChildren(new Option('Recent…', ''), ...list.map(r => new Option(r.name, r.id)));
+    }
+    $('recent').onchange = async () => {
+      const id = Number($('recent').value);
+      $('recent').value = '';
+      const r = (await recentList()).find(x => x.id === id);
+      if (!r) return;
+      openFile(async () => {
+        // a handle from an earlier session needs the user's permission again
+        if (await r.handle.queryPermission({ mode: 'readwrite' }) !== 'granted' &&
+            await r.handle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
+          return null;
+        }
+        return createFileHandleHost(r.handle, { lookup: lookup() });
+      });
+    };
+
+    // --- the rest of the demo controls ---------------------------------------------------
+
+    $('tx').onchange = () => {
+      if (!ed.host) return;
+      ed.host.lookup = lookup();
+      ed.requestUpdate();
+    };
+    $('ro').onchange = () => { ed.readonly = $('ro').checked; };
+    $('ver').onchange = () => ed.setAttribute('fhir-version', $('ver').value);
+    $('theme').onchange = () => $('theme').value ? ed.setAttribute('theme', $('theme').value) : ed.removeAttribute('theme');
+    $('showSaved').onchange = () => { $('saved').style.display = $('showSaved').checked ? 'block' : 'none'; };
+    window.addEventListener('beforeunload', e => { if (ed.hasChanges) e.preventDefault(); });
+
+    $('which').value = 'sample';
+    openSample();
+    showRecent();
+    window.editor = ed;
+  </script>
+</body>
+</html>

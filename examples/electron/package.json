@@ -1,0 +1,12 @@
+{
+  "name": "fhir-editors-electron-example",
+  "private": true,
+  "description": "Minimal Electron app hosting the fhir-editors CodeSystem editor",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^44.4.5"
+  }
+}

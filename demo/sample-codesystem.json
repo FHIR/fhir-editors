@@ -1,0 +1,175 @@
+{
+  "resourceType": "CodeSystem",
+  "id": "specimen-condition-example",
+  "url": "http://example.org/fhir/CodeSystem/specimen-condition-example",
+  "identifier": [
+    {
+      "system": "urn:ietf:rfc:3986",
+      "value": "urn:oid:2.16.840.1.113883.9.999.1"
+    }
+  ],
+  "version": "0.1.0",
+  "name": "SpecimenConditionExample",
+  "title": "Specimen Condition (example)",
+  "status": "draft",
+  "experimental": true,
+  "date": "2026-09-24",
+  "publisher": "Example Publisher",
+  "contact": [
+    {
+      "name": "Example Publisher",
+      "telecom": [
+        {
+          "system": "url",
+          "value": "http://example.org"
+        }
+      ]
+    }
+  ],
+  "description": "An example code system for demonstrating the CodeSystem editor: conditions of a specimen on receipt at the laboratory.",
+  "caseSensitive": true,
+  "hierarchyMeaning": "is-a",
+  "content": "complete",
+  "count": 10,
+  "filter": [
+    {
+      "code": "acceptable",
+      "description": "Whether the specimen can still be tested",
+      "operator": [
+        "="
+      ],
+      "value": "true or false"
+    }
+  ],
+  "property": [
+    {
+      "code": "status",
+      "uri": "http://hl7.org/fhir/concept-properties#status",
+      "description": "A code that indicates the status of the concept",
+      "type": "code"
+    },
+    {
+      "code": "acceptable",
+      "description": "Whether a specimen in this condition can still be tested",
+      "type": "boolean"
+    },
+    {
+      "code": "severity",
+      "description": "Relative severity, 1 (minor) to 5 (specimen unusable)",
+      "type": "integer"
+    }
+  ],
+  "concept": [
+    {
+      "code": "damaged",
+      "display": "Damaged",
+      "definition": "The specimen or its container is physically damaged.",
+      "property": [
+        {
+          "code": "acceptable",
+          "valueBoolean": false
+        }
+      ],
+      "concept": [
+        {
+          "code": "leaking",
+          "display": "Leaking",
+          "definition": "The container is leaking.",
+          "designation": [
+            {
+              "language": "fr",
+              "value": "Fuite"
+            },
+            {
+              "language": "de",
+              "use": {
+                "system": "http://snomed.info/sct",
+                "code": "900000000000013009",
+                "display": "Synonym"
+              },
+              "value": "Undicht"
+            }
+          ],
+          "property": [
+            {
+              "code": "severity",
+              "valueInteger": 4
+            }
+          ]
+        },
+        {
+          "code": "broken",
+          "display": "Broken container",
+          "property": [
+            {
+              "code": "severity",
+              "valueInteger": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "quality",
+      "display": "Quality problem",
+      "definition": "The specimen itself is compromised.",
+      "concept": [
+        {
+          "code": "hemolyzed",
+          "display": "Hemolyzed",
+          "definition": "Red blood cells have ruptured, releasing their contents into the serum or plasma.",
+          "property": [
+            {
+              "code": "acceptable",
+              "valueBoolean": true
+            },
+            {
+              "code": "severity",
+              "valueInteger": 2
+            }
+          ]
+        },
+        {
+          "code": "clotted",
+          "display": "Clotted",
+          "property": [
+            {
+              "code": "severity",
+              "valueInteger": 3
+            }
+          ]
+        },
+        {
+          "code": "lipemic",
+          "display": "Lipemic"
+        },
+        {
+          "code": "icteric",
+          "display": "Icteric",
+          "property": [
+            {
+              "code": "status",
+              "valueCode": "retired"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "labeling",
+      "display": "Labeling problem",
+      "concept": [
+        {
+          "code": "unlabeled",
+          "display": "Unlabeled",
+          "property": [
+            {
+              "code": "acceptable",
+              "valueBoolean": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

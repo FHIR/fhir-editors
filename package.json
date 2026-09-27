@@ -1,0 +1,43 @@
+{
+  "name": "fhir-editors",
+  "version": "0.1.0",
+  "description": "Browser-based editors for FHIR resources, for use in Electron applications (IG Publisher Manager) and in FHIRsmith",
+  "type": "module",
+  "license": "BSD-3-Clause",
+  "author": {
+    "name": "Grahame Grieve",
+    "email": "grahame@hl7.org"
+  },
+  "files": [
+    "dist",
+    "src",
+    "hosts",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./dist/fhir-editors.js",
+    "./codesystem": "./dist/codesystem.js",
+    "./src/*": "./src/*",
+    "./electron/main": "./hosts/electron/main.cjs",
+    "./electron/preload": "./hosts/electron/preload.cjs",
+    "./fhirsmith": "./hosts/fhirsmith/router.cjs",
+    "./dist/*": "./dist/*"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "test": "node --test \"test/*.test.js\"",
+    "demo": "node build.mjs && node demo/serve.mjs",
+    "prepare": "node build.mjs",
+    "prepublishOnly": "npm test"
+  },
+  "dependencies": {
+    "lit": "^3.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
