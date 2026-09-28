@@ -200,6 +200,9 @@ Set `--fe-*` custom properties on the editor or any ancestor: `--fe-bg`,
   their ⋮⋮ handle. Renaming a code updates properties that refer to it
   (parent, child, etc.).
 
+  Drag the right edge of a column header to resize it (double-click the edge
+  to reset). Widths are remembered in the browser's local storage.
+
   Keys: ↑/↓ and Enter move between rows in the same column; Ctrl/⌘+Enter
   adds a concept after the current one (with Shift, a child); Alt+↑/↓ moves
   it; Ctrl/⌘+] and Ctrl/⌘+[ indent and outdent; Ctrl/⌘+Shift+Delete deletes.

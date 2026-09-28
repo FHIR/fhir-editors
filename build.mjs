@@ -6,6 +6,7 @@
 // is split into chunks so it is only loaded once.
 
 import * as esbuild from 'esbuild';
+import fs from 'node:fs';
 
 const watch = process.argv.includes('--watch');
 
@@ -30,5 +31,7 @@ if (watch) {
   const ctx = await esbuild.context(options);
   await ctx.watch();
 } else {
+  // chunk names are content hashes, so old ones would otherwise pile up
+  fs.rmSync('dist', { recursive: true, force: true });
   await esbuild.build(options);
 }

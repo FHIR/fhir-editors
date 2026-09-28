@@ -28,6 +28,10 @@ const ROW_H = 28;      // px - rows must all be this height for the virtual scro
 const HEAD_H = 34;
 const OVERSCAN = 15;   // rows rendered beyond the visible ones
 
+const WIDTHS_KEY = 'fhir-editors.codesystem.column-widths';
+const MIN_COL = 40;    // px
+const DEFAULT_COL = { code: '18em', display: '16em', definition: '26em', prop: '10em' };
+
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '');
 const MOD = isMac ? '⌘' : 'Ctrl+';
 
@@ -63,6 +67,12 @@ export class CsConcepts extends LitElement {
     /* font-size on the cells, not the row: the column widths are in em */
     .row.head > div { font-size: 0.82em; padding: 2px 6px; display: flex; flex-direction: column; justify-content: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .row.head .type { font-weight: normal; font-size: 0.9em; }
+    .row.head > div { position: relative; }
+    .resizer {
+      position: absolute; top: 0; right: -1px; width: 7px; height: 100%; cursor: col-resize;
+      touch-action: none; z-index: 1;
+    }
+    .resizer:hover, .resizer.active { background: var(--_accent); opacity: 0.5; }
     .row.sel > * { background: var(--_select); }
     .row.dim input, .row.dim select, .row.dim .text { opacity: 0.5; }
     .row.drop-before > * { box-shadow: inset 0 2px 0 var(--_accent); }
@@ -109,6 +119,7 @@ export class CsConcepts extends LitElement {
     this._codeAtFocus = null;
     this._rows = [];
     this._pendingFocus = null;
+    this._widths = loadWidths();
   }
 
   get _r() { return this.editor.resource; }
@@ -457,6 +468,57 @@ export class CsConcepts extends LitElement {
     this._dragFrom = null;
   }
 
+  // --- column widths -------------------------------------------------------------
+  // Drag the right edge of a column header to resize it; double-click the edge to
+  // go back to the default width. Widths are remembered (per browser profile) by
+  // column: code, display, definition, and p:<property code>.
+
+  _cols(keys) {
+    const w = k => (this._widths[k] ? `${this._widths[k]}px` : DEFAULT_COL[k] || DEFAULT_COL.prop);
+    return ['22px', ...keys.map(w), '52px'].join(' ');
+  }
+
+  _resizer(key, keys) {
+    return html`<span class="resizer" title="Drag to resize, double-click to reset"
+      @pointerdown=${e => this._resizeStart(e, key, keys)}
+      @dblclick=${e => { e.stopPropagation(); delete this._widths[key]; saveWidths(this._widths); this.requestUpdate(); }}></span>`;
+  }
+
+  _resizeStart(e, key, keys) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    const startX = e.clientX;
+    const startW = handle.parentElement.getBoundingClientRect().width;
+    const scroller = this._scroller;
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add('active');
+    let width = startW;
+    const move = ev => {
+      width = Math.max(MIN_COL, Math.round(startW + ev.clientX - startX));
+      // update the grid directly while dragging, rather than re-rendering every row
+      const saved = this._widths;
+      this._widths = { ...saved, [key]: width };
+      scroller.style.setProperty('--cols', this._cols(keys));
+      this._widths = saved;
+    };
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      handle.removeEventListener('pointercancel', up);
+      handle.classList.remove('active');
+      if (width !== startW) {
+        this._widths = { ...this._widths, [key]: width };
+        saveWidths(this._widths);
+      }
+      this.requestUpdate();
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
+  }
+
   // --- lifecycle -----------------------------------------------------------------
 
   willUpdate() {
@@ -513,7 +575,8 @@ export class CsConcepts extends LitElement {
     const sel = this._sel ? pathKey(this._sel) : null;
     const selected = this._sel ? getConcept(r, this._sel) : null;
     const defs = (r.property || []).filter(d => d.code);
-    const cols = ['22px', '18em', '16em', '26em', ...defs.map(() => '10em'), '52px'].join(' ');
+    const colKeys = ['code', 'display', 'definition', ...defs.map(d => `p:${d.code}`)];
+    const cols = this._cols(colKeys);
 
     const issueByConcept = new Map();
     for (const i of this.editor.issues) {
@@ -569,10 +632,10 @@ export class CsConcepts extends LitElement {
       <div class="scroll" style="--cols: ${cols}" @scroll=${this._onScroll} @focusin=${this._onFocusIn} @keydown=${this._onKey}>
         <div class="row head" role="row">
           <div></div>
-          <div>Code</div>
-          <div>Display</div>
-          <div>Definition</div>
-          ${defs.map(d => html`<div title=${d.description || d.uri || d.code}>${d.code}<span class="type">${d.type || ''}</span></div>`)}
+          <div>Code${this._resizer('code', colKeys)}</div>
+          <div>Display${this._resizer('display', colKeys)}</div>
+          <div>Definition${this._resizer('definition', colKeys)}</div>
+          ${defs.map(d => html`<div title=${d.description || d.uri || d.code}>${d.code}<span class="type">${d.type || ''}</span>${this._resizer(`p:${d.code}`, colKeys)}</div>`)}
           <div></div>
         </div>
         ${rows.length === 0 ? html`<div class="empty">${this._search ? 'Nothing matches' : 'No concepts yet'}</div>` : ''}
@@ -636,3 +699,20 @@ export class CsConcepts extends LitElement {
 }
 
 if (!customElements.get('cs-concepts')) customElements.define('cs-concepts', CsConcepts);
+
+function loadWidths() {
+  try {
+    const w = JSON.parse(localStorage.getItem(WIDTHS_KEY) || '{}');
+    return w && typeof w === 'object' ? w : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveWidths(widths) {
+  try {
+    localStorage.setItem(WIDTHS_KEY, JSON.stringify(widths));
+  } catch {
+    // storage unavailable (private window, blocked) - widths just aren't remembered
+  }
+}
